@@ -53,7 +53,7 @@ lib/
 ## How to Run
 
 git clone https://github.com/NomanIshtiaq/Global-chat-App-
-cd Global-chat-App  
+cd Global-chat-App-  
 flutter pub get  
 flutter run  
 
