@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/material.dart';
 import 'package:globachat/providers/UserProvider.dart';
 import 'package:provider/provider.dart';
@@ -21,18 +22,38 @@ class _ChatroomscreenState extends State<Chatroomscreen> {
 
   TextEditingController messageText = TextEditingController();
   Future<void> sendmessage() async {
-    if (messageText.text.isEmpty) {
-      return;
-    }
+    if (messageText.text.isEmpty) return;
+
+    String currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
+    String username = Provider.of<UserProvider>(
+      context,
+      listen: false,
+    ).username;
+
+    // 📦 message object
     Map<String, dynamic> messagetosend = {
       "text": messageText.text,
-      "sender_name": Provider.of<UserProvider>(context, listen: false).username,
+      "sender_name": username,
+      "sender_id": currentUserId, // ✅ important for identity
       "timestamp": FieldValue.serverTimestamp(),
+      "chatroom_id": widget.chatroomid,
     };
+
     try {
+      // ✅ add message
       await db.collection("message").add(messagetosend);
-    } catch (e) {}
-    messageText.text = "";
+
+      // ⭐ ALSO UPDATE CHATROOM (THIS IS WHATSAPP LOGIC)
+      await db.collection("Chatrooms").doc(widget.chatroomid).update({
+        "last_message": messageText.text, // last message shown in dashboard
+        "last_time": FieldValue.serverTimestamp(), // for sorting later
+      });
+    } catch (e) {
+      print(e);
+    }
+
+    messageText.text = ""; // clear input
   }
 
   @override
@@ -43,12 +64,23 @@ class _ChatroomscreenState extends State<Chatroomscreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
+            // this is the stream builder used to rendered the message in realtime
             child: StreamBuilder(
+              //stream is the  main part which have the stream data
               stream: db
                   .collection("message")
-                  .orderBy("timestamp", descending: false)
+                  .where("chatroom_id", isEqualTo: widget.chatroomid)
+                  //orderby is used to order the messages according to the time they sended
+                  .orderBy(
+                    "timestamp",
+                    descending: false,
+                  ) //snapshot has the data
                   .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  print(snapshot.error);
+                  return Center(child: Text("Some Error hass occured"));
+                }
                 var allmessages = snapshot.data?.docs ?? [];
 
                 return ListView.builder(
@@ -80,7 +112,7 @@ class _ChatroomscreenState extends State<Chatroomscreen> {
                                   : Alignment.centerLeft,
                               child: Container(
                                 constraints: BoxConstraints(
-                                  maxWidth:
+                                  maxWidth: //mediaquery is used to tell the how big the screen then we are a
                                       MediaQuery.of(context).size.width * 0.8,
                                 ),
                                 decoration: BoxDecoration(

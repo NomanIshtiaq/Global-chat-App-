@@ -2,9 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:globachat/Screens/LoginScreen1.dart';
+import 'package:globachat/Screens/adduser.dart';
 import 'package:globachat/Screens/chatroomscreen.dart';
 import 'package:globachat/Screens/profile.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:globachat/providers/UserProvider.dart';
 import 'package:provider/provider.dart';
 
@@ -16,130 +16,156 @@ class Dashboardscreen extends StatefulWidget {
 }
 
 class _DashboardscreenState extends State<Dashboardscreen> {
-  List<Map<String, dynamic>> chatroomslist = [];
-
-  List<String> chatroomids = [];
-
   var scaffoldkey = GlobalKey<ScaffoldState>();
-
   var db = FirebaseFirestore.instance;
-  var authuser = FirebaseAuth.instance.currentUser;
-  void getchatrooms() {
-    db.collection("Chatrooms").get().then((dataSnapshot) {
-      for (var singlechatroom in dataSnapshot.docs) {
-        chatroomslist.add(singlechatroom.data());
-        chatroomids.add(singlechatroom.id.toString());
-      }
-      setState(() {});
-    });
+
+  String currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
+  // 🔥 REAL-TIME STREAM (NO MANUAL REFRESH NEEDED)
+  Stream<QuerySnapshot> getchatroomsStream() {
+    return db
+        .collection("Chatrooms")
+        .where("Users", arrayContains: currentUserId)
+        .snapshots(); // ✅ THIS FIXES YOUR PROBLEM
   }
 
-  @override
-  void initState() {
-    // TODO: implement initState
-    getchatrooms();
-    super.initState();
+  // 🔥 refresh when coming back from other screens
+  void openAddUser() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => Adduser()));
+
+    // optional extra refresh (safe fallback)
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    var UsersProvider = Provider.of<UserProvider>(context);
+    var userProvider = Provider.of<UserProvider>(context);
 
     return Scaffold(
       key: scaffoldkey,
-      appBar: AppBar(
-        title: Text('Global Chat '),
-        leading: InkWell(
-          splashColor: Colors.blueGrey[900],
 
-          onTap: () {
-            scaffoldkey.currentState!.openDrawer();
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(5.0),
-            child: CircleAvatar(
-              child: Text(
-                UsersProvider.username.isNotEmpty
-                    ? UsersProvider.username[0].toUpperCase()
-                    : "?",
-              ),
+      appBar: AppBar(
+        title: Text("Global Chat"),
+
+        actions: [
+          IconButton(
+            icon: Icon(Icons.add),
+            onPressed: openAddUser, // ✅ refresh after return
+          ),
+        ],
+
+        leading: InkWell(
+          onTap: () => scaffoldkey.currentState!.openDrawer(),
+          child: CircleAvatar(
+            child: Text(
+              userProvider.username.isNotEmpty
+                  ? userProvider.username[0].toUpperCase()
+                  : "?",
             ),
           ),
         ),
       ),
+
       drawer: Drawer(
         child: Column(
           children: [
             UserAccountsDrawerHeader(
-              accountName: Text(UsersProvider.username),
-              accountEmail: Text(UsersProvider.Email),
+              accountName: Text(userProvider.username),
+              accountEmail: Text(userProvider.Email),
               currentAccountPicture: CircleAvatar(
                 child: Text(
-                  UsersProvider.username.isNotEmpty
-                      ? UsersProvider.username[0].toUpperCase()
+                  userProvider.username.isNotEmpty
+                      ? userProvider.username[0].toUpperCase()
                       : "?",
                 ),
               ),
             ),
+
             ListTile(
+              title: Text("Profile"),
+              leading: Icon(Icons.people),
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) {
-                      return Profile();
-                    },
-                  ),
+                  MaterialPageRoute(builder: (_) => Profile()),
                 );
               },
-              leading: Icon(Icons.people),
-              title: Text("Profile"),
             ),
+
             ListTile(
+              title: Text("Logout"),
+              leading: Icon(Icons.logout),
               onTap: () async {
                 await FirebaseAuth.instance.signOut();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) {
-                      return Loginscreen();
-                    },
-                  ),
+                  MaterialPageRoute(builder: (_) => Loginscreen()),
                 );
               },
-              leading: Icon(Icons.logout),
-              title: Text("logout"),
             ),
           ],
         ),
       ),
-      body: ListView.builder(
-        itemCount: chatroomslist.length,
-        itemBuilder: (BuildContext context, int index) {
-          String chatroomlist = chatroomslist[index]["chatroom_name"] ?? " ";
-          return ListTile(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) {
-                    return Chatroomscreen(
-                      chatroomName: chatroomlist,
-                      chatroomid: chatroomids[index],
-                    );
-                  },
+
+      // 🔥 BODY (REAL TIME)
+      body: StreamBuilder<QuerySnapshot>(
+        stream: getchatroomsStream(),
+
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          var chatrooms = snapshot.data!.docs;
+
+          if (chatrooms.isEmpty) {
+            return Center(child: Text("No Chats Yet"));
+          }
+
+          return ListView.builder(
+            itemCount: chatrooms.length,
+
+            itemBuilder: (context, index) {
+              var chatroom = chatrooms[index].data() as Map<String, dynamic>;
+
+              Map usernames = chatroom["name"] ?? {};
+
+              String otherUsername = "User";
+
+              usernames.forEach((key, value) {
+                if (key != currentUserId) {
+                  otherUsername = value;
+                }
+              });
+
+              return ListTile(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Chatroomscreen(
+                        chatroomName: otherUsername,
+                        chatroomid: chatrooms[index].id,
+                      ),
+                    ),
+                  );
+                },
+
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blueGrey[900],
+                  child: Text(
+                    otherUsername.isNotEmpty
+                        ? otherUsername[0].toUpperCase()
+                        : "?",
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
+
+                title: Text(otherUsername),
+
+                subtitle: Text(chatroom["last_message"] ?? ""),
               );
             },
-            leading: CircleAvatar(
-              backgroundColor: Colors.blueGrey[900],
-              child: Text(
-                chatroomlist[0],
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            title: Text(chatroomlist),
-            subtitle: Text(chatroomslist[index]['desc']),
           );
         },
       ),
