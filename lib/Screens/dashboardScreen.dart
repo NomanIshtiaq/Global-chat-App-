@@ -21,19 +21,15 @@ class _DashboardscreenState extends State<Dashboardscreen> {
 
   String currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
-  // 🔥 REAL-TIME STREAM (NO MANUAL REFRESH NEEDED)
   Stream<QuerySnapshot> getchatroomsStream() {
     return db
         .collection("Chatrooms")
         .where("Users", arrayContains: currentUserId)
-        .snapshots(); // ✅ THIS FIXES YOUR PROBLEM
+        .snapshots();
   }
 
-  // 🔥 refresh when coming back from other screens
   void openAddUser() async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => Adduser()));
-
-    // optional extra refresh (safe fallback)
     setState(() {});
   }
 
@@ -43,17 +39,9 @@ class _DashboardscreenState extends State<Dashboardscreen> {
 
     return Scaffold(
       key: scaffoldkey,
-
       appBar: AppBar(
         title: Text("Global Chat"),
-
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: openAddUser, // ✅ refresh after return
-          ),
-        ],
-
+        actions: [IconButton(icon: Icon(Icons.add), onPressed: openAddUser)],
         leading: InkWell(
           onTap: () => scaffoldkey.currentState!.openDrawer(),
           child: CircleAvatar(
@@ -65,7 +53,6 @@ class _DashboardscreenState extends State<Dashboardscreen> {
           ),
         ),
       ),
-
       drawer: Drawer(
         child: Column(
           children: [
@@ -80,7 +67,6 @@ class _DashboardscreenState extends State<Dashboardscreen> {
                 ),
               ),
             ),
-
             ListTile(
               title: Text("Profile"),
               leading: Icon(Icons.people),
@@ -91,7 +77,6 @@ class _DashboardscreenState extends State<Dashboardscreen> {
                 );
               },
             ),
-
             ListTile(
               title: Text("Logout"),
               leading: Icon(Icons.logout),
@@ -106,11 +91,8 @@ class _DashboardscreenState extends State<Dashboardscreen> {
           ],
         ),
       ),
-
-      // 🔥 BODY (REAL TIME)
       body: StreamBuilder<QuerySnapshot>(
         stream: getchatroomsStream(),
-
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return Center(child: CircularProgressIndicator());
@@ -124,7 +106,6 @@ class _DashboardscreenState extends State<Dashboardscreen> {
 
           return ListView.builder(
             itemCount: chatrooms.length,
-
             itemBuilder: (context, index) {
               var chatroom = chatrooms[index].data() as Map<String, dynamic>;
 
@@ -150,7 +131,6 @@ class _DashboardscreenState extends State<Dashboardscreen> {
                     ),
                   );
                 },
-
                 leading: CircleAvatar(
                   backgroundColor: Colors.blueGrey[900],
                   child: Text(
@@ -160,9 +140,7 @@ class _DashboardscreenState extends State<Dashboardscreen> {
                     style: TextStyle(color: Colors.white),
                   ),
                 ),
-
                 title: Text(otherUsername),
-
                 subtitle: Text(chatroom["last_message"] ?? ""),
               );
             },

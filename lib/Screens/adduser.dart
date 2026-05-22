@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-// ✅ ADD THESE IMPORTS (required for Firebase + Provider)
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
@@ -14,15 +13,12 @@ class Adduser extends StatefulWidget {
 }
 
 class _AdduserState extends State<Adduser> {
-  // 🎯 Controllers for input fields
   TextEditingController email = TextEditingController();
   TextEditingController password = TextEditingController();
 
-  // 🔥 MAIN FUNCTION (UPDATED)
   Future<void> userdata() async {
-    String em = email.text.trim(); // get email input
+    String em = email.text.trim();
 
-    // ❌ stop if empty
     if (em.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -33,13 +29,11 @@ class _AdduserState extends State<Adduser> {
     var db = FirebaseFirestore.instance;
 
     try {
-      // 🔍 STEP 1: CHECK USER EXISTS IN FIRESTORE
       var result = await db
-          .collection("Users") // ⚠️ must exist in your DB
+          .collection("Users")
           .where("Email", isEqualTo: em)
           .get();
 
-      // ❌ if no user found
       if (result.docs.isEmpty) {
         ScaffoldMessenger.of(
           context,
@@ -47,12 +41,10 @@ class _AdduserState extends State<Adduser> {
         return;
       }
 
-      // ✅ GET OTHER USER DATA
       var otherUser = result.docs.first;
-      String otherUserId = otherUser.id; // their UID
+      String otherUserId = otherUser.id;
       String otherUsername = otherUser["name"] ?? "User";
 
-      // ✅ CURRENT USER DATA
       String currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
       String currentUsername = Provider.of<UserProvider>(
@@ -60,7 +52,6 @@ class _AdduserState extends State<Adduser> {
         listen: false,
       ).username;
 
-      // 🚫 prevent adding yourself
       if (currentUserId == otherUserId) {
         ScaffoldMessenger.of(
           context,
@@ -68,7 +59,6 @@ class _AdduserState extends State<Adduser> {
         return;
       }
 
-      // 🔍 STEP 2: CHECK IF CHATROOM ALREADY EXISTS
       var existing = await db
           .collection("Chatrooms")
           .where("Users", arrayContains: currentUserId)
@@ -78,7 +68,6 @@ class _AdduserState extends State<Adduser> {
         List users = doc["Users"] ?? [];
 
         if (users.contains(otherUserId)) {
-          // ❌ chat already exists
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text("Chat already exists")));
@@ -86,26 +75,20 @@ class _AdduserState extends State<Adduser> {
         }
       }
 
-      // ✅ STEP 3: CREATE NEW CHATROOM
       await db.collection("Chatrooms").add({
-        "Users": [currentUserId, otherUserId], // ⭐ both users
-        // ⭐ store names for UI display
+        "Users": [currentUserId, otherUserId],
         "name": {currentUserId: currentUsername, otherUserId: otherUsername},
-
-        "last_message": "", // initially empty
+        "last_message": "",
         "last_time": FieldValue.serverTimestamp(),
-
-        "desc": "New chat created", // your original field
+        "desc": "New chat created",
       });
 
-      // ✅ SUCCESS MESSAGE
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("User added successfully")));
 
-      Navigator.pop(context); // go back to dashboard
+      Navigator.pop(context);
     } catch (e) {
-      // ❌ ERROR HANDLING
       print(e);
       ScaffoldMessenger.of(
         context,
@@ -117,51 +100,37 @@ class _AdduserState extends State<Adduser> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Add New User')),
-
       body: Form(
         child: Padding(
           padding: const EdgeInsets.all(8.0),
-
           child: Column(
             children: [
-              // 📧 EMAIL FIELD
               TextFormField(
                 controller: email,
-
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return "The Email is required";
                   }
                   return null;
                 },
-
                 autovalidateMode: AutovalidateMode.onUserInteraction,
-
                 decoration: InputDecoration(label: Text("Email")),
               ),
-
-              // 🔒 PASSWORD FIELD (not used here, but kept as you had it)
               TextFormField(
                 controller: password,
-
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return "The password is required";
                   }
                   return null;
                 },
-
                 autovalidateMode: AutovalidateMode.onUserInteraction,
-
                 decoration: InputDecoration(label: Text("Password")),
               ),
-
               SizedBox(height: 20),
-
-              // ➕ ADD BUTTON
               ElevatedButton(
                 onPressed: () {
-                  userdata(); // ✅ CALL UPDATED FUNCTION
+                  userdata();
                 },
                 child: Text("Add"),
               ),
